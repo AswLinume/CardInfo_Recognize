@@ -76,7 +76,7 @@ Java_com_aswlinume_idcardrecognize_IDCardRecognizeUtils_getIdNumberImage
         if (rect.width > rect.height * 9) {
             rects.push_back(rect);
             rectangle(dst, rect, Scalar(0, 0, 255));//在dst图片上显示rect矩形
-            dst_img = src_img(rect);
+            dst = src_img(rect);
         }
     }
 
@@ -84,7 +84,7 @@ Java_com_aswlinume_idcardrecognize_IDCardRecognizeUtils_getIdNumberImage
     size = rects.size();
     if (size == 1) {
         Rect rect = rects.at(0);
-        dst_img = src_img(rect);
+        dst = src_img(rect);
     } else {
         int lowPoint = 0;
         Rect target;
@@ -97,8 +97,10 @@ Java_com_aswlinume_idcardrecognize_IDCardRecognizeUtils_getIdNumberImage
             }
         }
         rectangle(dst, target, Scalar(255, 255, 0));
-        dst_img = src_img(target);
+        dst = src_img(target);
     }
+
+    resize(dst, dst_img, Size(), 2.0, 2.0);
 
     jobject bitmap = createBitmap(env, dst_img, config);
 

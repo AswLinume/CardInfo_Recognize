@@ -12,8 +12,6 @@ import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.net.Uri;
-import android.os.AsyncTask;
-import android.os.Build;
 import android.os.Bundle;
 import android.provider.MediaStore;
 import android.text.TextUtils;
@@ -24,22 +22,34 @@ import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
-//import com.googlecode.tesseract.android.TessBaseAPI;
+import com.googlecode.tesseract.android.TessBaseAPI;
 
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
+import java.util.Objects;
+
+import io.reactivex.Observable;
+import io.reactivex.ObservableEmitter;
+import io.reactivex.ObservableOnSubscribe;
+import io.reactivex.Observer;
+import io.reactivex.android.schedulers.AndroidSchedulers;
+import io.reactivex.schedulers.Schedulers;
+import io.reactivex.disposables.Disposable;
 
 public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = MainActivity.class.getSimpleName();
 
-    private static final String[] PERMISSIONS_READ_STORAGE = {"android.permission.READ_EXTERNAL_STORAGE"};
+    private static final String[] PERMISSIONS_ACCESS_STORAGE =
+            {"android.permission.READ_EXTERNAL_STORAGE",
+             "android.permission.WRITE_EXTERNAL_STORAGE"};
 
     private static final int REQUEST_CODE_SELECT_ID_CARD = 1;
     private static final int REQUEST_CODE_FOR_PERMISSION_READ_STORAGE = 2;
+    private static final int REQUEST_CODE_FOR_PERMISSION_WRITE_STORAGE = 3;
 
-    //private TessBaseAPI mTessBaseApi;
+    private TessBaseAPI mTessBaseApi;
     private String mLanguage = "cn";
 
     private ImageView mIvProcessRes;
@@ -51,6 +61,8 @@ public class MainActivity extends AppCompatActivity {
     private Button mBtnLoadIDCard;
     private Button mBtnExtractIDCardNumber;
     private Button mBtnIdentifyIDCardNumber;
+
+    private boolean mIsTessBaseApiInit = false;
 
 
     private void showProgress() {
@@ -73,62 +85,83 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        mIvProcessRes = (ImageView) findViewById(R.id.iv_image_process_result);
-        mTvIdentifyRes = (TextView) findViewById(R.id.tv_IDCard_number_result);
-        mBtnLoadIDCard = (Button) findViewById(R.id.btn_select_IDCard);
-        mBtnExtractIDCardNumber = (Button) findViewById(R.id.btn_extract_IDCard_number);
-        mBtnIdentifyIDCardNumber = (Button) findViewById(R.id.btn_identify_IDCard_number);
+        mIvProcessRes = findViewById(R.id.iv_image_process_result);
+        mTvIdentifyRes = findViewById(R.id.tv_IDCard_number_result);
+        mBtnLoadIDCard = findViewById(R.id.btn_select_IDCard);
+        mBtnExtractIDCardNumber = findViewById(R.id.btn_extract_IDCard_number);
+        mBtnIdentifyIDCardNumber = findViewById(R.id.btn_identify_IDCard_number);
 
-        //initTess();
-
+        if (checkAccessStoragePermissions()) {
+            ActivityCompat.requestPermissions(this, PERMISSIONS_ACCESS_STORAGE,
+                    REQUEST_CODE_FOR_PERMISSION_WRITE_STORAGE);
+        } else {
+            initTess();
+        }
     }
 
-    /*private void initTess() {
-        new AsyncTask<Void, Void, Boolean>() {
-            @Override
-            protected void onPreExecute() {
-                showProgress();
-            }
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        mTessBaseApi.recycle();
+    }
 
+    private void initTess() {
+        Observable.create(new ObservableOnSubscribe<Boolean>() {
             @Override
-            protected void onPostExecute(Boolean succeed) {
-                if (succeed) {
-                    dismissProgress();
-                } else {
-                    Toast.makeText(MainActivity.this, "识别模型训练失败", Toast.LENGTH_SHORT).show();
-                }
-            }
-
-            @Override
-            protected Boolean doInBackground(Void... voids) {
+            public void subscribe(ObservableEmitter<Boolean> emitter) throws Exception {
                 mTessBaseApi = new TessBaseAPI();
-                try {
-                    InputStream is = null;
-                    is = getAssets().open(mLanguage);
-                    File file = new File("/sdcard/tess/tessdata" + mLanguage);
-                    if (!file.exists()) {
-                        file.getParentFile().mkdir();
-                        FileOutputStream fos = new FileOutputStream(file);
-                        byte[] buffer = new byte[2048];
-                        int len;
-                        while ((len = is.read(buffer)) != -1) {
-                            fos.write(buffer, 0, len);
-                        }
-                        fos.close();
+                File file = new File("/sdcard/tess/tessdata/" + mLanguage + ".traineddata");
+                if (!file.exists()) {
+                    InputStream is = getAssets().open(mLanguage + ".traineddata");
+                    File pf = file.getParentFile();
+                    pf.mkdirs();
+                    FileOutputStream fos = new FileOutputStream(file);
+                    byte[] buffer = new byte[2048];
+                    int len;
+                    while ((len = is.read(buffer)) != -1) {
+                        fos.write(buffer, 0, len);
                     }
+                    fos.close();
                     is.close();
-                    return mTessBaseApi.init("/sdcard/tess", mLanguage);
-                } catch (Exception e) {
-                    e.printStackTrace();
                 }
-                return null;
+                emitter.onNext(mTessBaseApi.init("/sdcard/tess", mLanguage));
             }
-        }.execute();
-    }*/
+        }).subscribeOn(Schedulers.io())
+        .observeOn(AndroidSchedulers.mainThread())
+        .subscribe(new Observer<Boolean>() {
+            @Override
+            public void onSubscribe(Disposable d) {
+
+            }
+
+            @Override
+            public void onNext(Boolean succeed) {
+                if (succeed) {
+                    //dismissProgress();
+                    mIsTessBaseApiInit = true;
+                } else {
+                    Toast.makeText(MainActivity.this, "识别模型初试化失败，原因：init调用失败",
+                            Toast.LENGTH_SHORT).show();
+                }
+            }
+
+            @Override
+            public void onError(Throwable e) {
+                Toast.makeText(MainActivity.this, "识别模型初试化失败，原因：" + e.getMessage(),
+                        Toast.LENGTH_SHORT).show();
+                e.printStackTrace();
+            }
+
+            @Override
+            public void onComplete() {
+
+            }
+        });
+    }
 
     public void loadIDCard(View view) {
-        if (!checkReadStoragePermissions()) {
-            ActivityCompat.requestPermissions(this, PERMISSIONS_READ_STORAGE,
+        if (checkAccessStoragePermissions()) {
+            ActivityCompat.requestPermissions(this, PERMISSIONS_ACCESS_STORAGE,
                     REQUEST_CODE_FOR_PERMISSION_READ_STORAGE);
             return;
         }
@@ -151,9 +184,11 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    private boolean checkReadStoragePermissions() {
-        return ActivityCompat.checkSelfPermission(this, PERMISSIONS_READ_STORAGE[0])
-                == PackageManager.PERMISSION_GRANTED;
+    private boolean checkAccessStoragePermissions() {
+        return ActivityCompat.checkSelfPermission(this, PERMISSIONS_ACCESS_STORAGE[0])
+                != PackageManager.PERMISSION_GRANTED
+                || ActivityCompat.checkSelfPermission(this, PERMISSIONS_ACCESS_STORAGE[1])
+                != PackageManager.PERMISSION_GRANTED;
     }
 
     @Override
@@ -161,24 +196,33 @@ public class MainActivity extends AppCompatActivity {
         if (requestCode == REQUEST_CODE_FOR_PERMISSION_READ_STORAGE) {
             if (grantResults.length != 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 startSelectImage();
+                initTess();
+            } else {
+                Toast.makeText(this, "禁止存储权限将无法访问手机相册", Toast.LENGTH_SHORT).show();
+            }
+        } else if (requestCode == REQUEST_CODE_FOR_PERMISSION_WRITE_STORAGE){
+            if (grantResults.length != 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                initTess();
+            } else {
+                Toast.makeText(this, "禁止存储权限将无法完成识别功能", Toast.LENGTH_SHORT).show();
             }
         }
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
     }
 
     public void extractIDCardNumber(View view) {
-        mTvIdentifyRes.setText("");
         if (mExtractedImage != null) mExtractedImage.recycle();
         mExtractedImage = IDCardRecognizeUtils.getIdNumberImage(mOriginImage, Bitmap.Config.ARGB_8888);
         mOriginImage.recycle();
         mIvProcessRes.setImageBitmap(mExtractedImage);
-        mBtnIdentifyIDCardNumber.setEnabled(true);
+        mBtnExtractIDCardNumber.setEnabled(false);
+        mBtnIdentifyIDCardNumber.setEnabled(mIsTessBaseApiInit);
     }
 
     public void identifyIDCardNumber(View view) {
-        //baseApi.setImage(mExtractedImage);
-        //mIdentifyRes.setText(baseApi.getUTF8Text());
-        //baseApi.clear();
+        mTessBaseApi.setImage(mExtractedImage);
+        mTvIdentifyRes.setText(mTessBaseApi.getUTF8Text());
+        mTessBaseApi.clear();
     }
 
     private void loadIDCardImageFromUri(Uri uri) {
@@ -204,7 +248,9 @@ public class MainActivity extends AppCompatActivity {
             }
             mOriginImage = BitmapFactory.decodeFile(imagePath);
             mIvProcessRes.setImageBitmap(mOriginImage);
+            mTvIdentifyRes.setText("");
             mBtnExtractIDCardNumber.setEnabled(true);
+            mBtnIdentifyIDCardNumber.setEnabled(false);
         }
 
     }
