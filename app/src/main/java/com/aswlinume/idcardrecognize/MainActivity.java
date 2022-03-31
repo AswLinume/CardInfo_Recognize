@@ -45,9 +45,15 @@ public class MainActivity extends AppCompatActivity {
             {"android.permission.READ_EXTERNAL_STORAGE",
              "android.permission.WRITE_EXTERNAL_STORAGE"};
 
-    private static final int REQUEST_CODE_SELECT_ID_CARD = 1;
-    private static final int REQUEST_CODE_FOR_PERMISSION_READ_STORAGE = 2;
-    private static final int REQUEST_CODE_FOR_PERMISSION_WRITE_STORAGE = 3;
+    private static final String[] PERMISSIONS_CAMERA =
+            {"android.permission.CAMERA"};
+
+    private static final int REQUEST_CODE_SELECT_ID_CARD = 0x01;
+    private static final int REQUEST_CODE_TAKE_PHOTO = 0x02;
+
+    private static final int REQUEST_CODE_FOR_PERMISSION_READ_STORAGE = 0x10;
+    private static final int REQUEST_CODE_FOR_PERMISSION_WRITE_STORAGE = 0x11;
+    private static final int REQUEST_CODE_FOR_PERMISSION_CAMERA = 0x12;
 
     private TessBaseAPI mTessBaseApi;
     private String mLanguage = "cn";
@@ -127,36 +133,36 @@ public class MainActivity extends AppCompatActivity {
                 emitter.onNext(mTessBaseApi.init("/sdcard/tess", mLanguage));
             }
         }).subscribeOn(Schedulers.io())
-        .observeOn(AndroidSchedulers.mainThread())
-        .subscribe(new Observer<Boolean>() {
-            @Override
-            public void onSubscribe(Disposable d) {
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(new Observer<Boolean>() {
+                    @Override
+                    public void onSubscribe(Disposable d) {
 
-            }
+                    }
 
-            @Override
-            public void onNext(Boolean succeed) {
-                if (succeed) {
-                    //dismissProgress();
-                    mIsTessBaseApiInit = true;
-                } else {
-                    Toast.makeText(MainActivity.this, "识别模型初试化失败，原因：init调用失败",
-                            Toast.LENGTH_SHORT).show();
-                }
-            }
+                    @Override
+                    public void onNext(Boolean succeed) {
+                        if (succeed) {
+                            //dismissProgress();
+                            mIsTessBaseApiInit = true;
+                        } else {
+                            Toast.makeText(MainActivity.this, "识别模型初试化失败，原因：init调用失败",
+                                    Toast.LENGTH_SHORT).show();
+                        }
+                    }
 
-            @Override
-            public void onError(Throwable e) {
-                Toast.makeText(MainActivity.this, "识别模型初试化失败，原因：" + e.getMessage(),
-                        Toast.LENGTH_SHORT).show();
-                e.printStackTrace();
-            }
+                    @Override
+                    public void onError(Throwable e) {
+                        Toast.makeText(MainActivity.this, "识别模型初试化失败，原因：" + e.getMessage(),
+                                Toast.LENGTH_SHORT).show();
+                        e.printStackTrace();
+                    }
 
-            @Override
-            public void onComplete() {
+                    @Override
+                    public void onComplete() {
 
-            }
-        });
+                    }
+                });
     }
 
     public void loadIDCard(View view) {
@@ -181,7 +187,21 @@ public class MainActivity extends AppCompatActivity {
         if (requestCode == REQUEST_CODE_SELECT_ID_CARD && null != data) {
             Log.i(TAG, "onActivityResult: ");
             loadIDCardImageFromUri(data.getData());
+        } else if (requestCode == REQUEST_CODE_TAKE_PHOTO) {
+            if (resultCode == Constant.CODE_RESULT_OK && data != null) {
+                String imgPath = data.getStringExtra(Constant.KEY_IMAGE_PATH);
+                Log.i(TAG, "onActivityResult:" + imgPath);
+//                int picWidth = data.getIntExtra(Constant.KEY_IMAGE_WIDTH, 0);
+//                int picHeight = data.getIntExtra(Constant.KEY_IMAGE_HEIGHT, 0);
+                mOriginImage = IDCardRecognizeUtils.getIdCardImage(BitmapFactory.decodeFile(imgPath), Bitmap.Config.ARGB_8888);
+                mIvProcessRes.setImageBitmap(mOriginImage);
+                mTvIdentifyRes.setText("");
+                mBtnExtractIDCardNumber.setEnabled(true);
+                mBtnIdentifyIDCardNumber.setEnabled(false);
+            }
+
         }
+        Log.i(TAG, "onActivityResult: ");
     }
 
     private boolean checkAccessStoragePermissions() {
@@ -200,11 +220,17 @@ public class MainActivity extends AppCompatActivity {
             } else {
                 Toast.makeText(this, "禁止存储权限将无法访问手机相册", Toast.LENGTH_SHORT).show();
             }
-        } else if (requestCode == REQUEST_CODE_FOR_PERMISSION_WRITE_STORAGE){
+        } else if (requestCode == REQUEST_CODE_FOR_PERMISSION_WRITE_STORAGE) {
             if (grantResults.length != 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 initTess();
             } else {
                 Toast.makeText(this, "禁止存储权限将无法完成识别功能", Toast.LENGTH_SHORT).show();
+            }
+        } else if (requestCode == REQUEST_CODE_FOR_PERMISSION_CAMERA) {
+            if (grantResults.length != 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                startCameraActivity();
+            } else {
+                Toast.makeText(this, "禁止相机权限将无法完成拍照功能", Toast.LENGTH_SHORT).show();
             }
         }
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
@@ -246,12 +272,34 @@ public class MainActivity extends AppCompatActivity {
             if (mOriginImage != null) {
                 mOriginImage.recycle();
             }
-            mOriginImage = BitmapFactory.decodeFile(imagePath);
+            mOriginImage = IDCardRecognizeUtils.getIdCardImage(BitmapFactory.decodeFile(imagePath), Bitmap.Config.ARGB_8888);
             mIvProcessRes.setImageBitmap(mOriginImage);
             mTvIdentifyRes.setText("");
             mBtnExtractIDCardNumber.setEnabled(true);
             mBtnIdentifyIDCardNumber.setEnabled(false);
         }
 
+    }
+
+    public void takePhoto(View view) {
+        if (checkCameraPermissions()) {
+            ActivityCompat.requestPermissions(this, PERMISSIONS_CAMERA,
+                    REQUEST_CODE_FOR_PERMISSION_CAMERA);
+            return;
+        }
+        startCameraActivity();
+
+    }
+
+    private boolean checkCameraPermissions() {
+        return ActivityCompat.checkSelfPermission(this, PERMISSIONS_CAMERA[0])
+                != PackageManager.PERMISSION_GRANTED;
+    }
+
+
+    private void startCameraActivity() {
+        Intent intent = new Intent(this, CameraActivity.class);
+
+        startActivityForResult(intent, REQUEST_CODE_TAKE_PHOTO);
     }
 }

@@ -21,10 +21,10 @@
 using namespace cv;
 using namespace std;
 
-extern "C"  JNIEXPORT void JNICALL Java_org_opencv_android_Utils_nBitmapToMat2
-        (JNIEnv *env, jclass, jobject bitmap,jlong m_addr, jboolean needUnPremultiplyAlpha);
+extern "C" JNIEXPORT void JNICALL Java_org_opencv_android_Utils_nBitmapToMat2
+        (JNIEnv *env, jclass, jobject bitmap, jlong m_addr, jboolean needUnPremultiplyAlpha);
 
-extern "C"  JNIEXPORT void JNICALL Java_org_opencv_android_Utils_nMatToBitmap
+extern "C" JNIEXPORT void JNICALL Java_org_opencv_android_Utils_nMatToBitmap
         (JNIEnv *env, jclass, jlong m_addr, jobject bitmap);
 
 jobject createBitmap(JNIEnv *env, Mat src_image, jobject config) {
@@ -32,7 +32,8 @@ jobject createBitmap(JNIEnv *env, Mat src_image, jobject config) {
     int imgHeight = src_image.rows;
     int numPix = imgWidth * imgHeight;
     jclass bmpClz = env->FindClass("android/graphics/Bitmap");
-    jmethodID  createBmpMID = env->GetStaticMethodID(bmpClz, "createBitmap", "(IILandroid/graphics/Bitmap$Config;)Landroid/graphics/Bitmap;");
+    jmethodID createBmpMID = env->GetStaticMethodID(bmpClz, "createBitmap",
+                                                    "(IILandroid/graphics/Bitmap$Config;)Landroid/graphics/Bitmap;");
     jobject bmp = env->CallStaticObjectMethod(bmpClz, createBmpMID, imgWidth, imgHeight, config);
     Java_org_opencv_android_Utils_nMatToBitmap(env, 0, (jlong) &src_image, bmp);
     return bmp;
@@ -107,6 +108,92 @@ Java_com_aswlinume_idcardrecognize_IDCardRecognizeUtils_getIdNumberImage
     src_img.release();
     dst_img.release();
     dst.release();
+
+    return bitmap;
+}
+
+bool cmpByX(const Point &A, const Point &B){
+    return A.x < B.x;
+}
+
+void getFourPoint(vector<Point> &points,Point &tl, Point &tr, Point &bl, Point &br) {
+    sort(points.begin(), points.end(), cmpByX);
+    if (points[0].y < points[1].y) {
+        tl = points[0];
+        bl = points[1];
+    } else {
+        tl = points[1];
+        bl = points[0];
+    }
+    if (points[2].y < points[3].y) {
+        tr = points[2];
+        br = points[3];
+    } else {
+        tr = points[3];
+        br = points[2];
+    }
+}
+
+
+bool cmpByArea(const vector<Point> &A, const vector<Point> &B){
+    return contourArea(A) > contourArea(B);
+}
+
+extern "C"
+JNIEXPORT jobject JNICALL
+Java_com_aswlinume_idcardrecognize_IDCardRecognizeUtils_getIdCardImage
+        (JNIEnv *env, jclass clazz,jobject src,jobject config) {
+    Mat src_img;
+    Java_org_opencv_android_Utils_nBitmapToMat2(env, clazz, src, (jlong) &src_img, 0);
+    Mat resize_img;
+    Mat process_img;
+    Mat dst_img;
+
+    resize(src_img, resize_img, Size(), 0.5, 0.5);
+
+    //灰度化
+    cvtColor(resize_img, process_img, COLOR_BGR2GRAY);
+
+    //二值化
+    threshold(process_img, process_img, 127, 255, THRESH_BINARY);
+
+    //轮廓检测
+    vector<vector<Point>> contours;
+    findContours(process_img, contours, RETR_EXTERNAL, CHAIN_APPROX_NONE);
+
+    sort(contours.begin(), contours.end(), cmpByArea);
+
+    //int area = contourArea(contours[0]);
+
+    vector<Point> points;
+    float epi = 0.1 * arcLength(contours[0], true);
+    approxPolyDP(contours[0], points, epi, true);
+
+    Point tl, bl, tr, br;
+    getFourPoint(points, tl, tr, bl, br);
+
+    Point2f points_org[4] = {tl, tr, br, bl};
+
+    float widthA = sqrt(pow((tr.x - tl.x), 2) + pow((tr.y - tl.y), 2));
+    float widthB = sqrt(pow((br.x - bl.x), 2) + pow((br.y - bl.y), 2));
+    float heightA = sqrt(pow((bl.x - tl.x), 2) + pow((bl.y - tl.y), 2));
+    float heightB = sqrt(pow((br.x - tr.x), 2) + pow((br.y - tr.y), 2));
+    int width = round(max(widthA, widthB));
+    int height = round(max(heightA, heightB));
+
+
+    Point2f points_new[4] = {Point2f(0, 0), Point2f(width - 1, 0), Point2f(width - 1, height - 1), Point2f(0, height - 1)};
+    Mat M = getPerspectiveTransform(points_org, points_new);
+    warpPerspective(resize_img, dst_img, M, Size(width, height));
+
+    M.release();
+
+    jobject bitmap = createBitmap(env, dst_img, config);
+
+    src_img.release();
+    dst_img.release();
+    resize_img.release();
+    process_img.release();
 
     return bitmap;
 }

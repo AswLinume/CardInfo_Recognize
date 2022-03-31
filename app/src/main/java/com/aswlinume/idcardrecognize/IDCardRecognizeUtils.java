@@ -10,5 +10,7 @@ public class IDCardRecognizeUtils {
 
     public static native Bitmap getIdNumberImage(Bitmap src, Bitmap.Config config);
 
+    public static native Bitmap getIdCardImage(Bitmap src, Bitmap.Config config);
+
 
 }
