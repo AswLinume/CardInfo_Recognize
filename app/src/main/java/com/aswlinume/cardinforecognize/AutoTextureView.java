@@ -1,4 +1,4 @@
-package com.aswlinume.idcardrecognize;
+package com.aswlinume.cardinforecognize;
 
 import android.content.Context;
 import android.util.AttributeSet;

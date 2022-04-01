@@ -41,7 +41,7 @@ jobject createBitmap(JNIEnv *env, Mat src_image, jobject config) {
 
 
 extern "C" JNIEXPORT jobject JNICALL
-Java_com_aswlinume_idcardrecognize_IDCardRecognizeUtils_getIdNumberImage
+Java_com_aswlinume_cardinforecognize_CardRecognizeUtils_getIdNumberImage
         (JNIEnv *env, jclass clazz, jobject src, jobject config) {
     Mat src_img;
     Mat dst_img;
@@ -141,7 +141,7 @@ bool cmpByArea(const vector<Point> &A, const vector<Point> &B){
 
 extern "C"
 JNIEXPORT jobject JNICALL
-Java_com_aswlinume_idcardrecognize_IDCardRecognizeUtils_getIdCardImage
+Java_com_aswlinume_cardinforecognize_CardRecognizeUtils_getCardImage
         (JNIEnv *env, jclass clazz,jobject src,jobject config) {
     Mat src_img;
     Java_org_opencv_android_Utils_nBitmapToMat2(env, clazz, src, (jlong) &src_img, 0);
@@ -178,9 +178,15 @@ Java_com_aswlinume_idcardrecognize_IDCardRecognizeUtils_getIdCardImage
     float widthB = sqrt(pow((br.x - bl.x), 2) + pow((br.y - bl.y), 2));
     float heightA = sqrt(pow((bl.x - tl.x), 2) + pow((bl.y - tl.y), 2));
     float heightB = sqrt(pow((br.x - tr.x), 2) + pow((br.y - tr.y), 2));
-    int width = round(max(widthA, widthB));
-    int height = round(max(heightA, heightB));
+    float maxWidth = max(widthA, widthB);
+    float maxHeight = max(heightA, heightB);
 
+    float ratio = maxWidth / maxHeight;
+
+    if (ratio < 1.5 || ratio > 1.8) return nullptr;
+
+    int width = round(maxWidth);
+    int height = round(maxHeight);
 
     Point2f points_new[4] = {Point2f(0, 0), Point2f(width - 1, 0), Point2f(width - 1, height - 1), Point2f(0, height - 1)};
     Mat M = getPerspectiveTransform(points_org, points_new);

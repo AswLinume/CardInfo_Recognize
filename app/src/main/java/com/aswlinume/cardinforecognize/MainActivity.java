@@ -1,4 +1,4 @@
-package com.aswlinume.idcardrecognize;
+package com.aswlinume.cardinforecognize;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -27,7 +27,6 @@ import com.googlecode.tesseract.android.TessBaseAPI;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
-import java.util.Objects;
 
 import io.reactivex.Observable;
 import io.reactivex.ObservableEmitter;
@@ -193,7 +192,17 @@ public class MainActivity extends AppCompatActivity {
                 Log.i(TAG, "onActivityResult:" + imgPath);
 //                int picWidth = data.getIntExtra(Constant.KEY_IMAGE_WIDTH, 0);
 //                int picHeight = data.getIntExtra(Constant.KEY_IMAGE_HEIGHT, 0);
-                mOriginImage = IDCardRecognizeUtils.getIdCardImage(BitmapFactory.decodeFile(imgPath), Bitmap.Config.ARGB_8888);
+                if (mOriginImage != null) mOriginImage.recycle();
+                mOriginImage = CardRecognizeUtils.getCardImage(BitmapFactory.decodeFile(imgPath), Bitmap.Config.ARGB_8888);
+                //mOriginImage = BitmapFactory.decodeFile(imgPath);
+                if (mOriginImage == null) {
+                    Toast.makeText(this, "未发现任何可识别卡片", Toast.LENGTH_SHORT).show();
+                    mIvProcessRes.setImageBitmap(null);
+                    mTvIdentifyRes.setText("");
+                    mBtnExtractIDCardNumber.setEnabled(false);
+                    mBtnIdentifyIDCardNumber.setEnabled(false);
+                    return;
+                }
                 mIvProcessRes.setImageBitmap(mOriginImage);
                 mTvIdentifyRes.setText("");
                 mBtnExtractIDCardNumber.setEnabled(true);
@@ -238,7 +247,7 @@ public class MainActivity extends AppCompatActivity {
 
     public void extractIDCardNumber(View view) {
         if (mExtractedImage != null) mExtractedImage.recycle();
-        mExtractedImage = IDCardRecognizeUtils.getIdNumberImage(mOriginImage, Bitmap.Config.ARGB_8888);
+        mExtractedImage = CardRecognizeUtils.getIdNumberImage(mOriginImage, Bitmap.Config.ARGB_8888);
         mOriginImage.recycle();
         mIvProcessRes.setImageBitmap(mExtractedImage);
         mBtnExtractIDCardNumber.setEnabled(false);
@@ -272,7 +281,7 @@ public class MainActivity extends AppCompatActivity {
             if (mOriginImage != null) {
                 mOriginImage.recycle();
             }
-            mOriginImage = IDCardRecognizeUtils.getIdCardImage(BitmapFactory.decodeFile(imagePath), Bitmap.Config.ARGB_8888);
+            mOriginImage = CardRecognizeUtils.getCardImage(BitmapFactory.decodeFile(imagePath), Bitmap.Config.ARGB_8888);
             mIvProcessRes.setImageBitmap(mOriginImage);
             mTvIdentifyRes.setText("");
             mBtnExtractIDCardNumber.setEnabled(true);
@@ -298,7 +307,7 @@ public class MainActivity extends AppCompatActivity {
 
 
     private void startCameraActivity() {
-        Intent intent = new Intent(this, CameraActivity.class);
+        Intent intent = new Intent(this, CameraXActivity.class);
 
         startActivityForResult(intent, REQUEST_CODE_TAKE_PHOTO);
     }

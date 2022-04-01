@@ -16,3 +16,6 @@
 .externalNativeBuild
 .cxx
 local.properties
+/.idea/runConfigurations.xml
+/.idea/compiler.xml
+/.idea/misc.xml

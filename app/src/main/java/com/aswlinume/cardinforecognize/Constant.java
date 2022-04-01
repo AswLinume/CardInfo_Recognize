@@ -1,4 +1,4 @@
-package com.aswlinume.idcardrecognize;
+package com.aswlinume.cardinforecognize;
 
 public class Constant {
 

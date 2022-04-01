@@ -1,4 +1,4 @@
-package com.aswlinume.idcardrecognize;
+package com.aswlinume.cardinforecognize;
 
 import org.junit.Test;
 
